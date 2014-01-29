@@ -1,0 +1,64 @@
+This is a sample Python implementation of Message Bus.
+It serves no useful purpose other than to emonstrate the flow of commands 
+and interaction of components.
+
+Prerequisites: you need zeroMQ and the pyzmq Python bindings installed. 
+
+Likely 'pip install pyzmq' will do the job, else see http://zeromq.github.io/pyzmq/index.html , and http://zeromq.org/bindings:python for installation hints.
+
+To run the demo, open a few windows.
+
+
+
+In one window, run the messagebus server:
+
+  $ python msgbus.py --verbose
+
+
+In the next window, run an actor. Lets call her 'motion', she will be a
+simple responder actor:
+
+ $ python actor.py --name motion --verbose
+
+You will see in the msgbus window the msgbus server is now aware of the actor's presence.
+
+In a third window, let's inject some commands to motion. We call the injector  'task':
+
+
+ $ python commandsubmitter.py --name task --destination  motion --verbose
+
+
+This is really not more than simple request/response message passing mediated by Message Bus.
+But that really is all the current task/motion interaction can do.
+
+
+
+
+Let's get more fancy, and open more windows. First, stop the commandsubmitter, and leave the
+msgbus and 'motion' actor running.
+
+in the next window, run another actor. This one will invoke a sub-actor to complete it's action. Let us call her 'homing', and she will invoke the motion actor on every second command:
+
+  $ python actor.py --verbose --name homing --subactor motion
+
+
+
+In another window, let's inject some commands to homing. :
+
+
+ $ python commandsubmitter.py --name task --destination  homing --verbose
+
+You'll see that the 'motion' actor is invoked on every other command, and how command
+submission and completion works.
+
+Note you can still directly invoke motion:
+
+ $ python commandsubmitter.py --name task --destination  motion --verbose
+
+
+actor.py can take an arbitrary number of sub-actor names as arguments; they will be invoked
+in parallel, and all the status responses collected before the main command is answered.
+
+
+
+The actor and commandsubmitter scripts take a '--help' option. But the code is rather short and easy to read.
