@@ -1,4 +1,7 @@
 This is a sample Python implementation of Message Bus.
+
+see https://github.com/mhaberler/messagebus/wiki for a description.
+
 It serves no useful purpose other than to emonstrate the flow of commands 
 and interaction of components.
 
