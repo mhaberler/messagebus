@@ -11,22 +11,48 @@ parser.add_option("-v","--verbose", action="store_true", dest="verbose",
 
 (options, args) = parser.parse_args()
 
+me = "msgbus"
 
-# ROUTER/XPUB pairs
-
-# the command bus:
-cmdinput = 'tcp://127.0.0.1:5570'
-cmdoutput   = 'tcp://127.0.0.1:5571'
-
-# the response bus:
-responseinput = 'tcp://127.0.0.1:5572'
-responseoutput = 'tcp://127.0.0.1:5573'
+# the command rail:
+cmduri   = 'tcp://127.0.0.1:5571'
+# the response rail:
+responseuri = 'tcp://127.0.0.1:5573'
 
 
 class MsgbusTask(threading.Thread):
     def __init__(self):
         threading.Thread.__init__ (self)
         self.kill_received = False
+
+    def handle(self, socket, error, sname, presence):
+        msg = socket.recv_multipart()
+        if options.verbose: print "---%s %s recv: %s" % (me,sname,msg)
+        if len(msg) == 1:
+            frame = msg[0]
+            sub = ord(frame[0])
+            topic = frame[1:]
+
+            if sub == 1:
+                presence[topic] = True
+                if options.verbose: print "--- %s %s subscribe: %s" % (me,sname,topic)
+            elif sub == 0:
+                if options.verbose: print "--- %s %s unsubscribe: %s" % (me,sname,topic)
+                del presence[topic]
+            else:
+                if options.verbose: print "---%s %s recv: invalid frame: %s" % (me,sname,msg)
+
+        else:
+            dest = msg[1]
+            if dest in presence:
+                msg[0], msg[1] = msg[1], msg[0]
+                socket.send_multipart(msg)
+            else:
+                # bad command destination only: reply with an error message
+                # an unroutable response will be logged and dropped
+                if error:
+                    error.send_multipart([msg[0], "--- no destination: " + dest])
+                if options.verbose: print "no %s destination: %s" % (sname,dest)
+
 
     def run(self):
         print('Msbus started')
@@ -35,76 +61,27 @@ class MsgbusTask(threading.Thread):
         responsesubs = dict()
         context = zmq.Context()
 
-        cmdin = context.socket(zmq.ROUTER)
-        cmdin.bind(cmdinput)
+        cmd = context.socket(zmq.XPUB)
+        cmd.set(zmq.XPUB_VERBOSE,1)
+        cmd.bind(cmduri)
 
-        cmdout = context.socket(zmq.XPUB)
-        cmdout.set(zmq.XPUB_VERBOSE,1)
-        cmdout.bind(cmdoutput)
-
-        responsein = context.socket(zmq.ROUTER)
-        responsein.bind(responseinput)
-
-        responseout = context.socket(zmq.XPUB)
-        responseout.set(zmq.XPUB_VERBOSE,1)
-        responseout.bind(responseoutput)
+        response = context.socket(zmq.XPUB)
+        response.set(zmq.XPUB_VERBOSE,1)
+        response.bind(responseuri)
 
         poll = zmq.Poller()
-        poll.register(cmdin,      zmq.POLLIN)
-        poll.register(cmdout,     zmq.POLLIN)
-        poll.register(responsein, zmq.POLLIN)
-        poll.register(responseout,zmq.POLLIN)
+        poll.register(cmd,     zmq.POLLIN)
+        poll.register(response,zmq.POLLIN)
 
 
         while not self.kill_received:
             s = dict(poll.poll(1000))
-            if cmdin in s:
-                msg = cmdin.recv_multipart()
-                if options.verbose: print "---cmdin recv: ", msg
-
-                dest = msg[1]
-                if dest in cmdsubs:
-                    msg[0], msg[1] = msg[1], msg[0]
-                    cmdout.send_multipart(msg)
-                else:
-                    responseout.send_multipart([msg[0], "no destination: " + dest])
-                    if options.verbose: print "no command destination:", dest
-
-            if responsein in s:
-                msg = responsein.recv_multipart()
-                if options.verbose: print "---responsein recv: ", msg
-
-                dest = msg[1]
-                if dest in responsesubs:
-                    msg[0], msg[1] = msg[1], msg[0]
-                    responseout.send_multipart(msg)
-                else:
-                    responseout.send_multipart([msg[0], "no destination: " + dest])
-                    if options.verbose: print "no destination:", dest
-
-            if cmdout in s:
-                submsg = cmdout.recv()
-                sub = ord(submsg[0])
-                topic = submsg[1:]
-
-                if sub:
-                    cmdsubs[topic] = True
-                    if options.verbose: print "--- commandout subscribe: %s" % (topic)
-                else:
-                    if options.verbose: print "--- commandout unsubscribe: %s" % (topic)
-                    del cmdsubs[topic]
-
-            if responseout in s:
-                submsg = responseout.recv()
-                sub = ord(submsg[0])
-                topic = submsg[1:]
-
-                if sub:
-                    responsesubs[topic] = True
-                    if options.verbose: print "--- responseout subscribe: %s" % (topic)
-                else:
-                    if options.verbose: print "--- responseout unsubscribe: %s" % (topic)
-                    del responsesubs[topic]
+            if cmd in s:
+                self.handle(cmd, response, "cmd", cmdsubs)
+            elif response in s:
+                self.handle(response, None, "response", responsesubs)
+            else:
+                continue
 
         context.destroy(linger=0)
         print('Msbus exited')
@@ -120,6 +97,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

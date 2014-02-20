@@ -4,19 +4,13 @@ from optparse import OptionParser
 
 parser = OptionParser()
 
-parser.add_option("-C", "--cmdout", dest="cmdoutput", default="tcp://127.0.0.1:5570",
-                  help="URI to submit commands to")
 
-parser.add_option("-c", "--cmdin", dest="cmdinput", default="tcp://127.0.0.1:5571",
-                  help="URI to fetch commands from")
+parser.add_option("-c", "--cmd", dest="cmduri", default="tcp://127.0.0.1:5571",
+                  help="command URI")
 
-parser.add_option("-r", "--responsein", dest="responseinput", 
+parser.add_option("-r", "--response", dest="responseuri",
                   default="tcp://127.0.0.1:5573",
-                  help="URI to fetch responses from")
-
-parser.add_option("-R", "--responseout", dest="responseoutput",
-                  default="tcp://127.0.0.1:5572",
-                  help="URI to submit responses to")
+                  help="response URI")
 
 parser.add_option("-n", "--name", dest="actor", default="actor",
                   help="use this as actor name")
@@ -34,27 +28,20 @@ me = options.actor
 
 context = zmq.Context()
 
-cmdin = context.socket(zmq.SUB)
-cmdin.connect(options.cmdinput)
-cmdin.setsockopt(zmq.SUBSCRIBE, me)
+cmd = context.socket(zmq.XSUB)
+cmd.connect(options.cmduri)
+# subscribe XSUB-style by sending a message  \001<topic> 
+cmd.send("\001%s" % (me))
 
-cmdout = context.socket(zmq.DEALER)
-cmdout.setsockopt(zmq.IDENTITY, me)
-cmdout.connect(options.cmdoutput)
-
-responsein = context.socket(zmq.SUB)
-responsein.connect(options.responseinput)
-responsein.setsockopt(zmq.SUBSCRIBE, me)
-
-responseout = context.socket(zmq.DEALER)
-responseout.setsockopt(zmq.IDENTITY, me)
-responseout.connect(options.responseoutput)
+response = context.socket(zmq.XSUB)
+response.connect(options.responseuri)
+response.send("\001%s" % (me))
 
 i = 0
 while True:
    i += 1
 
-   msg = cmdin.recv_multipart()
+   msg = cmd.recv_multipart()
    # asser(msg[0] == me)
    sender = msg[1]
    payload = str(msg[2:])
@@ -67,11 +54,11 @@ while True:
       for actor in options.subactors:
          if options.verbose:
             print "---%s invoke %s" % (me, actor)
-         cmdout.send_multipart([actor, "a job for " + actor])
+         cmd.send_multipart([me,actor, "a job for " + actor])
 
       # collect responses
       for actor in options.subactors:
-          reply = responsein.recv_multipart()
+          reply = response.recv_multipart()
           if options.verbose:
              print "---%s got reply from %s" % (me, reply[1])
           subresult += " " + reply[2]
@@ -80,4 +67,4 @@ while True:
          print "---%s all responses in: %s" % (me, subresult)
 
    result = payload + " processed by " + me + "  " + subresult
-   responseout.send_multipart([sender, result])
+   response.send_multipart([me,sender, result])
