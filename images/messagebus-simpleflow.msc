@@ -3,16 +3,16 @@ msc {
 
   arcgradient = 4;
 
-  a [label="inject"],b [label="messagebus\ncommand"], c[label="messagebus\nresponse"], d [label="actor"];
+  a [label="inject"],b [label="messagebus\ncommand"], c[label="messagebus\nresponse"], d [label="responder"];
 
   a=>c [ label = "subscribe(name=inject)" ] ;
-  d=>b [ label = "subscribe(name=actor)" ] ;
+  d=>b [ label = "subscribe(name=responder)" ] ;
 
-  a=>b [ label = "send(actor,inject,request)"];
-  b=>d [ label = "publish(actor,inject,request)"];
+  a=>b [ label = "send(responder,inject,request)"];
+  b=>d [ label = "publish(responder,inject,request)"];
   d=>d [ label = "process()" ];
 
-  d=>c [ label = "send(inject,actor,reply)"];
-  c=>a [ label = "publish(inject,actor,reply)"];
+  d=>c [ label = "send(inject,responder,reply)"];
+  c=>a [ label = "publish(inject,responder,reply)"];
 
 }
