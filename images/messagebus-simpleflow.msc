@@ -1,0 +1,18 @@
+# injector/actor message flow
+msc {
+
+  arcgradient = 4;
+
+  a [label="inject"],b [label="messagebus\ncommand"], c[label="messagebus\nresponse"], d [label="actor"];
+
+  a=>c [ label = "subscribe(name=inject)" ] ;
+  d=>b [ label = "subscribe(name=actor)" ] ;
+
+  a=>b [ label = "send(actor,inject,request)"];
+  b=>d [ label = "publish(actor,inject,request)"];
+  d=>d [ label = "process()" ];
+
+  d=>c [ label = "send(inject,actor,reply)"];
+  c=>a [ label = "publish(inject,actor,reply)"];
+
+}
