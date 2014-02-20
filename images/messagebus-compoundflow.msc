@@ -3,9 +3,11 @@ msc {
 
   arcgradient = 4;
 
-  a [label="injector"],b [label="messagebus\ncommand"], 
-  c[label="messagebus\nresponse"], d [label="compound\nactor"],
-  e[label="responder"];
+  a [label="injector"],
+  b [label="messagebus\ncommand rail"],
+  c [label="messagebus\nresponse rail"],
+  d [label="compound\nactor"],
+  e [label="responder"];
 
   a=>c [ label = "subscribe(name=inject)" ] ;
   d=>b [ label = "subscribe(name=actor)" ] ;
